@@ -1,0 +1,381 @@
+\documentclass{article}
+\usepackage{CJK}
+\usepackage{amsmath}
+\usepackage[tikz]{mdframed}
+
+%%%%%%%%%% Start TeXmacs macros
+\catcode`\<=\active \def<{
+\fontencoding{T1}\selectfont\symbol{60}\fontencoding{\encodingdefault}}
+\catcode`\>=\active \def>{
+\fontencoding{T1}\selectfont\symbol{62}\fontencoding{\encodingdefault}}
+\newcommand{\tmnote}[1]{\thanks{\textit{Note:} #1}}
+\newcommand{\tmop}[1]{\ensuremath{\operatorname{#1}}}
+\newcommand{\tmstrong}[1]{\textbf{#1}}
+\newcommand{\tmsubtitle}[1]{\thanks{\textit{Subtitle:} #1}}
+\newenvironment{itemizedot}{\begin{itemize} \renewcommand{\labelitemi}{$\bullet$}\renewcommand{\labelitemii}{$\bullet$}\renewcommand{\labelitemiii}{$\bullet$}\renewcommand{\labelitemiv}{$\bullet$}}{\end{itemize}}
+\newenvironment{tmindent}{\begin{tmparmod}{1.5em}{0pt}{0pt}}{\end{tmparmod}}
+\newenvironment{tmparmod}[3]{\begin{list}{}{\setlength{\topsep}{0pt}\setlength{\leftmargin}{#1}\setlength{\rightmargin}{#2}\setlength{\parindent}{#3}\setlength{\listparindent}{\parindent}\setlength{\itemindent}{\parindent}\setlength{\parsep}{\parskip}} \item[]}{\end{list}}
+\mdfsetup{linecolor=black,linewidth=0.5pt,skipabove=0.5em,skipbelow=0.5em,hidealllines=true,
+innerleftmargin=0pt,innerrightmargin=0pt,innertopmargin=0pt,innerbottommargin=0pt}
+\newmdenv[topline=true,bottomline=true,innertopmargin=1ex,innerbottommargin=1ex]{tmbothlined}
+%%%%%%%%%% End TeXmacs macros
+
+\begin{document}
+\begin{CJK*}{UTF8}{gbsn}
+
+\title{
+  人工智能导论 作业报告
+  \tmsubtitle{拼音输入法}
+  \tmnote{2019年3月30日}
+}
+
+\author{
+  韩志磊
+  \tmnote{计76，学号2017011442}
+}
+
+\maketitle
+
+\section{原理与分析}
+
+\subsection{算法}
+
+\subsubsection{统计算法}
+
+{\leftaligned{\begin{tmindent}
+  \
+  
+  为实现拼音序列到汉字的转换，基于预先给定的语料，可以采用概率统计的方法。{\tmstrong{假定样本具有足够的代表性}}，那么，通过统计样本中各字的出现频率，就可以知晓其大致的实际使用频率。然而，这样只能保证单字的出现概率最大，没有考虑上下文的影响。如果我们不对汉语的语法和语义进行分析（现有的语料也没这个条件），单纯就文本表观的频度而言，就需要一些更为复杂的概率计算。
+  
+  假定汉字的出现概率可以用古典概型计算，事件$O_n$代表输入长度为n的拼音串$\alpha_{1,
+  2, 3 \ldots
+  n}$，事件$\omega_i$代表第i位拼音代表的字符，$\omega$代表总的长度为n的字符串。我们希望概率$P
+  (\omega_{} |O_n)$最小，根据贝叶斯公式：
+  \[ P (\omega |O_n) = \frac{P (O_n | \omega) \times P (\omega)}{P (O_n)} \]
+  
+  
+  在一次试验中，$P (O_n)$是定值；而$P (O_n |
+  \omega)$是「某个字符串读音为O的概率」，{\tmstrong{在不考虑多音字的情况下}}，这个概率是1。因此，我们只需要求符合给定读音的某个字符串，它本身的出现概率最大。
+  
+  由乘法公式立即可得：
+  \[ P (\omega) = P (\omega_1 \omega_2 \omega_3 \cdots \omega_n) = \sum^n_{i =
+     1} P (\omega_i | \omega_1 \omega_2 \cdots \omega_{i - 1}) \]
+  
+  
+  精确地计算需要每个i元词组出现的频率，这意味着指数级的预处理复杂度（或运行期指数级时间复杂度），对于这个问题是不可接受的。考虑到大部分时候，没有必要考虑已出现的所有前缀对当前字符判定的影响，可以适当对条件进行弱化。前面提到的只考虑单字概率的模型，就是不考虑条件项的结果。由此，我们可以从二元模型开始，即只考虑当前字符的前一字符的影响。
+  \[ P (\omega) = \sum_{i = 1}^n P (\omega_i | \omega_{i - 1}) = \sum_{i =
+     1}^n \frac{P (\omega_{\iota} \omega_{i - 1})}{P (\omega_{i - 1})} =
+     \sum^n_{i = 1} \frac{\# \omega_i \omega_{i - 1}}{\# \omega_{i - 1}} \]
+  
+  
+  如此一来，我们只需要统计大约6000*6000个词组的出现频率即可。
+  
+  \ 
+\end{tmindent}}}
+
+\subsubsection{识别算法}
+
+\begin{tmindent}
+  \
+  
+  现在我们已经完成了对原始语料的统计，并得到了一个二维矩阵occurrence用以标识二元词组的出现次数、一个一位数组count记录单个字符的出现次数，并且知道语料库的总大小。输入一个拼音的集合，如何给出概率最大的字符串呢？
+  
+  在原型程序中，我使用的算法可以大致描述如下：
+  
+  算法逐拼音进行处理，令$W_i$为第i个拼音对应的可能字符集合，$P
+  (\omega)$为$\omega$对应的概率。则对于每一个$\omega \in
+  W_i$，考虑每一个$x \in W_{i - 1}$，有
+  \[ P (\omega) = \max \left( P (x) \cdot \frac{\tmop{occurrence} [x]
+     [\omega]}{\tmop{count} [x]} \right), \forall x \in W_{i - 1} \wedge
+     \tmop{occurrence} [x] \neq 0 \]
+  
+  
+  并且假定
+  \[ P (\omega) = \frac{\tmop{count} [\omega]}{\tmop{TotalNumber}} \forall
+     \omega \in W_1 \]
+  
+  
+  算法从$W_1$开始，至$W_n$结束。最终的结果就是$\max (P
+  (W_n))$对应的字符串。要回溯这个字符串并不困难，只要在算法进行时用指针记录使得当前P值最大的前一字符即可。（详见代码）
+  
+  该过程的伪代码如下:
+  
+  {\rendercode{PROCEDURE FIND\_BEST(PINYINS)
+  
+  BEGIN
+  
+  \ \ \ PTABLE <- []
+  
+  \ \ \
+  
+  \ \ \ CHARS <- LETTERSTABLE[PINYINS[0]]
+  
+  \ \ \ FTABLE <- []
+  
+  \ \ \ FOR CHAR IN CHARS
+  
+  \ \ \ DO
+  
+  \ \ \ \ \ \ \ FTABLE.ADD(<COUNT[CHAR]/TOTALNUMBER,NULL,CHAR>)
+  
+  \ \ \ DONE
+  
+  \ \ \ PTABLE.ADD(FTABLE)
+  
+  \
+  
+  \ \ \ FOR PINYIN IN PINYINS[1,2,3...]
+  
+  \ \ \ DO
+  
+  \ \ \ \ \ \ \ LTABLE <- []
+  
+  \ \ \ \ \ \ \ FOR LCHARS IN LETTERSTABLE[PINYIN]
+  
+  \ \ \ \ \ \ \ DO
+  
+  \ \ \ \ \ \ \ \ \ \ \ L\_PROBABILITY <- 0
+  
+  \ \ \ \ \ \ \ \ \ \ \ PREV\_MAX <- NULL
+  
+  \ \ \ \ \ \ \ \ \ \ \ PREV\_TABLE = PTABLE.BACK()
+  
+  \
+  
+  \ \ \ \ \ \ \ \ \ \ \ FOR PREV IN PREV\_TABLE
+  
+  \ \ \ \ \ \ \ \ \ \ \ DO
+  
+  \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ N\_PROBABILITY <- PREV.FIRST() *
+  OCCURRENCE[PREV][LCHARS] / COUNT[PREV]
+  
+  \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ IF N\_PROBABILITY > L\_PROBABILITY
+  
+  \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ THEN
+  
+  \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ L\_PROBABILITY <- N\_PROBABILITY
+  
+  \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ PREV\_MAX <- PREV
+  
+  \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ DONE
+  
+  \ \ \ \ \ \ \ \ \ \ \ DONE
+  
+  \ \ \ \ \ \ \ \ \ \ \ LTABLE.ADD<L\_PROBABILITY,PREV\_MAX,LCHARS>
+  
+  \ \ \ \ \ \ \ DONE
+  
+  \ \ \ \ \ \ \ PTABLE.ADD<LTABLE>
+  
+  \ \ \ DONE
+  
+  END}}
+\end{tmindent}
+
+\subsection{实验结果}
+
+\subsubsection{案例}
+
+\begin{tmindent}
+  \
+  
+  在实现了上述算法（代码说明见后）之后，得到了较为准确、迅速的原型程序。试选取其中成功的例子为例：
+  
+  \
+  
+  \begin{tmbothlined}
+    \item 清华大学计算机系
+    
+    \item 北京市人民政府
+    
+    \item 中国特色社会主义
+    
+    \item 爱国主义统一战线
+    
+    \item 五十六个民族
+    
+    \item 我还在上班呢
+    
+    \item 你今晚有空吗
+    
+    \item 精准扶贫
+    
+    \item 反法西斯战争
+    
+    \item 我的手机没电了
+    
+    \item 菜市场里人很多
+  \end{tmbothlined}
+  
+  \
+  
+  \
+  
+  {\tmstrong{不成功}}例子譬如：
+  
+  \begin{tmbothlined}
+    \begin{itemizedot}
+      \item 义勇军进行曲
+      
+      >>义勇军进行区
+      
+      \item 人民当家做主
+      
+      >>人民党家做主
+      
+      \item 你能借我你的铅笔吗
+      
+      >>你能解我你的铅笔马
+      
+      \item 大家有什么想说的吗
+      
+      >>大家有什么想说的马
+      
+      \item 火箭成功发射上天
+      
+      >>和建成功发射上天
+      
+      \item 和稀泥
+      
+      >>获悉尼
+      
+      \item 今天回家比较晚
+      
+      >>今天回家比较完
+    \end{itemizedot}
+  \end{tmbothlined}
+\end{tmindent}
+
+
+\subsubsection{分析}
+
+\begin{tmindent}
+  \
+  
+  由上可以看出，由于语料库的限制，原型程序所能准确识别只有某一类别的词组。譬如，由于给定的语料库绝大部分是新闻，因此时政、经济等方面的词组容易被识别；而相较之下，日常生活用语则较难被识别。当然，目前的算法也可以一部分地选择出有多个词组的最佳的字符串，像「菜市场里人很多」这样的句子就可以被识别，说明存在着概率控制的简单分词功能。
+  
+  但这毕竟不是真正的分词，「人民当家做主」这种词，原本可以比较简单地分出三个词组，但由于概率模型中「国民党」这个词出现的频率太大，占据了主要的乘积项，导致识别失败。「义勇军进行曲」也是同理。
+  
+  由此可以看出基于概率模型的输入法本身就有许多问题。一者受语料限制太大，二者受个别辞藻影响过深。此外还有缺失语义分析的问题：上面的例子中，「吗」这个语气词并不能准确地选择，原因在于对于「问句」这种形式无法判定。而且一旦输入的句子里语料的偏差越大、长度越长，语义上的问题就越加凸显。
+  
+  汉语的规则比较复杂，很难用上下文无关的语法来限定候选词的范围。不过，拥有语法分析的模型无疑能更好地处理相关问题（虽然有些时候会是事倍功半，因为汉语的反常现象很多）。
+  
+  多音字是另一个非常恼人的问题。「火箭」这种词的出现频率没有「和建」高，因此识别失败；但是「和」读huó的概率极小，显然此处是不合理的。而「和稀泥」这类的词，由于缺乏字到多音的对应关系，也没办法识别。因此对于实际的输入法程序而言，某种双向的映射关系及数量关系是必须的。
+\end{tmindent}
+
+\section{实现}
+
+\subsection{项目说明}
+
+\begin{tmindent}
+  \
+  
+  请注意以下所有文件均为utf-8编码，请不要使用gbk编码运行。
+  
+  按照说明的要求，最终的结构如下：
+  
+  \begin{quotation}
+    .
+    
+    ├── bin
+    
+    │ ├── main
+    
+    │ └── wrapper.py
+    
+    ├── data
+    
+    │ ├── input.txt
+    
+    │ └── output.txt
+    
+    ├── src
+    
+    │ ├── count.cpp
+    
+    │ ├── data.cpp
+    
+    │ ├── main.cpp
+    
+    │ ├── support
+    
+    │ │ ├── cat.js
+    
+    │ │ ├── count.js
+    
+    │ │ ├── letters.txt
+    
+    │ │ ├── p2l.txt
+    
+    │ │ ├── pinyin2letter.txt
+    
+    │ │ ├── process.js
+    
+    │ │ ├── statistics.js
+    
+    │ │ ├── translation.js
+    
+    │ │ └── tr.sh
+    
+    │ ├── table.cpp
+    
+    │ └── ver2.cpp
+    
+    └── todo.txt
+  \end{quotation}
+  
+  说明中的「指定输入、输出文件」的功能只能由脚本wrapper.py实现，主程序main只进行计算。确保操作系统为64位Unix，且有libstdc++库，则可以直接使用编译好的程序。要指定输入、输出文件，向封装脚本传入参数即可：
+  \begin{tmindent}
+    ./wrapper.py myinut myoutput
+  \end{tmindent}
+  请确保输入文件是utf8编码、Unix换行符风格。
+\end{tmindent}
+
+\subsection{编译说明}
+
+\begin{tmindent}
+  \
+  
+  核心程序以C++编写，预处理与支持脚本以JavaScript编写，包装脚本以Python编写。要完整地完成从语料到可执行程序的过程，请确保安装C++11标准及以上的编译器、Node.js解释器，并预留2GB空间、至少4GB内存。
+  
+  首先将所有的语料转换到utf-8，复制到support文件夹下，运行cat.js，会生成whole.txt。然后，依次运行process.js、statictics.js、count.js。{\tmstrong{该步大概需要1小时时间完成。}}
+  
+  将生成的occurrence.txt和count.txt复制到src/源码目录，然后用C++11标准编译该目录下{\tmstrong{除ver2.cpp外}}的所有C++源代码，并链接为可执行文件。{\tmstrong{注意：编译需要大概10分钟，4\~{}7GB内存。建议先生成对象文件，再进行链接。}}
+  
+  将可执行文件复制到与Python代码同级的目录，以Python2运行脚本即可。
+\end{tmindent}
+
+\subsection{优化}
+
+\subsubsection{朴素的优化法}
+
+\begin{tmindent}
+  \
+  
+  main.cpp是经典的实现，同时ver2.cpp也提供了「改进版」。但值得说明的是，改进是相对于某种输入而言的，对于其他的输入，这个改进版反而会使得识别率下降。考虑到鲁棒性的问题，我没有提供ver2的可执行版本。
+  
+  ver2所做的优化是很朴素的。在不涉及语法、语义、增加语料、导入预设字典、使用第三方库的情况下，我们能利用的，只有occurance和count两个数据而已。从某种意义上来说，如果只有这些信息，所做出的拼音输入法的准确率总是有上限的，更遑论人的主观思想的影响了。ver2思想是模拟「分词」的效果，通过人为地断开低概率词语间的联系，达到某种程度上的词模型。
+  
+  ver2是这样实现这个不怎么出色的效果的：如果对于第i个拼音而言，无论选择哪一个汉字，其概率都与上一个字的概率的商小于某一个阈值，则从当前例程递归，将下一个字符视为新的句子开头。这样做的目的也很简单：当两个不怎么常用的词组组合时，不会相互影响。
+  
+  ver2的效果并不好，对于有些字符串，它的确有比较好的效果；不过对于很大部分的普通特有词语，反而会错误地将其断开。这当然是因为这毕竟不是专业的分词器，其内部的原理是概率而不是查表；但是还有一个很重要的原因在于阈值的选取并不简单。要区分「人民代表大会」和「香辣冰淇淋」这两种词，所需要的阈值非常微妙，因为概率之间的差异不大。
+  
+  总的来说这是比较失败的优化尝试，但在不借助外力的情况下，固定语料的概率模型的最大限度大抵便是如此了。
+\end{tmindent}
+
+\subsubsection{可能的优化法}
+
+\begin{tmindent}
+  \
+  
+  优化的方法是很多的。出于时间、精力上的考虑，我只用提供的语料库本身完成了项目，但实际上，这个语料库的偏向性的确非常强，缺少一些流行文化，而且过于正式了。耗费一些寻找和重编译的时间找一个更好的语料库，其代价绝对是值得的。
+  
+  三元模型可能并没有看上去那么优秀，可以预见采用三元模型的情况下，其准确性也许在某些时候比现在的二元模型还要差一些。因为二元词组的出现频率，在经验中比三元词组多得多。采用三元词组来进行判定，不仅复杂度更高，往往还会「拆散」原本相连的词语。
+  
+  二元与三元结合的模型也许会更好，即在判定时有限二元，然后以某个衰减系数乘以三元模型的判定结果作为参考。对于更高维度的模型也是一样的。
+  
+  分词是很不错的办法（或者找一本字典之类的），但是记忆中比较慢。如果不在运行期进行分词，就必须需要很大的存储空间。同样的，也许更好的办法是词、字模型结合。先对语料「存在」的词语进行搜索，如果没有，才进行基于字的判定。{\setthispageheader{{\unchanged}人工智能导论}}
+\end{tmindent}
+
+\end{CJK*}
+\end{document}
